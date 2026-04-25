@@ -1,0 +1,238 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{xcolor}
+
+\hypersetup{colorlinks=true, linkcolor=blue!50!black, citecolor=blue!50!black,
+            urlcolor=blue!50!black}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\KL}{\mathrm{KL}}
+\DeclareMathOperator{\Var}{Var}
+
+\title{The Coupling Matters: \\ A Controlled Study of Flow Matching with Optimal Transport Plans}
+\author{Mael Tremouille \and Giovanni Dettori \\ ENSAE Paris --- M2 Optimal Transport}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Flow Matching (FM) trains a neural velocity field $v_\theta$ such that integrating
+$\dot{x}(t) = v_\theta(x(t), t)$ from a source distribution $\nu_0$ recovers a target
+$\nu_1$.  The training data is a coupling $\pi \in \Pi(\nu_0, \nu_1)$ between the two
+distributions.  In this report we isolate the effect of the choice of $\pi$ on
+training, trajectory geometry and low-NFE sampling quality on controlled 2D toy
+problems.  We compare four canonical couplings (independent, exact discrete OT,
+entropic Sinkhorn samples, Sinkhorn barycentric projection) and add a continuous
+\emph{perturbed-OT} interpolation between OT and independent plans.  We find that
+OT-based couplings dramatically reduce path energy and improve low-NFE quality at
+no additional training cost, while the barycentric projection further reduces the
+target-velocity variance the regression has to fit.  We complement these
+empirical observations with a discussion of the underlying mechanism --- the
+regularity of the optimal velocity field as a function of the coupling.
+\end{abstract}
+
+% =============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Generative modeling via simulation-free training of continuous-time flows has
+recently become a competitive alternative to score-based diffusion.  Flow
+Matching \cite{lipman2023flow} learns a velocity field $v_\theta : \R^d \times
+[0,1] \to \R^d$ by regressing it onto a target velocity along a prescribed
+interpolation path between samples of the source $\nu_0$ and the target $\nu_1$.
+A key design choice that is often left implicit is the \emph{coupling}
+$\pi \in \Pi(\nu_0, \nu_1)$ used to draw training pairs $(x_0, x_1)$: this object
+determines the conditional distribution of the velocity target $x_1 - x_0$ given
+the interpolating point $x_t$, and therefore the irreducible noise in the
+regression problem.
+
+The starting point of this report is a simple but striking observation, already
+present in the original FM paper and made explicit in \cite{tong2023improving,
+pooladian2023multisample}: choosing $\pi$ to be the optimal transport plan
+$\pi^\star$ between the empirical measures of $\nu_0$ and $\nu_1$ makes the
+regression target an \emph{exact gradient field} (the constant velocity along the
+straight line connecting matched pairs) and turns the trained flow into a near-OT
+map.  This in turn yields short, almost straight trajectories, which is critical
+for low-NFE sampling.
+
+Beyond this qualitative claim, several questions remain unsettled.  How exactly
+does the coupling shape the training landscape (loss variance, target velocity
+variance)?  Does the entropic regularization parameter $\varepsilon$ in
+Sinkhorn-based couplings interpolate smoothly between exact OT and independent
+sampling?  Is the deterministic \emph{barycentric projection} of a Sinkhorn plan
+preferable to stochastic sampling from the same plan?  And what happens for
+intermediate plans of the form
+$\pi_\alpha = (1-\alpha)\pi^\star + \alpha\pi_{\mathrm{ind}}$ which interpolate
+linearly between the OT and the product plan?
+
+\paragraph{Contributions.}
+We provide a controlled, reproducible empirical study of these questions on 2D
+toy data, with the same MLP, optimizer, training budget and rollout solver
+across all couplings.  Specifically we (i) re-implement the four canonical
+couplings (independent, Hungarian OT, Sinkhorn-sampled, Sinkhorn-barycentric)
+within a small package
+\href{https://github.com/dettorig/ot_flow_matching_project}{\texttt{otfm}} that
+makes the comparison reproducible and extendable;  (ii) introduce path-energy
+based and curvature-based diagnostics, training proxies (loss variance, kernel
+estimate of the conditional velocity variance), and mode-coverage metrics on the
+8-Gaussians target;  (iii) sweep the entropic regularization $\varepsilon$ and
+the perturbed-OT interpolation $\alpha$ to characterise the smooth interpolation
+between exact OT and independent sampling;  (iv) discuss the underlying
+mechanism in terms of the regularity of the conditional velocity field.
+
+% =============================================================================
+\section{Background and notation}
+\label{sec:background}
+
+\paragraph{Flow Matching.}
+Given source $\nu_0$ and target $\nu_1$ on $\R^d$ and a coupling $\pi \in
+\Pi(\nu_0, \nu_1)$, Flow Matching trains a velocity field $v_\theta$ by
+minimising the conditional regression loss
+\begin{equation}
+    \label{eq:fm-loss}
+    \mathcal{L}(\theta)
+    = \E_{(x_0, x_1) \sim \pi,\; t \sim U(0,1)}
+        \left\| v_\theta(x_t, t) - (x_1 - x_0) \right\|^2,
+    \qquad
+    x_t = (1-t)\,x_0 + t\,x_1.
+\end{equation}
+The optimal velocity field at convergence is the \emph{conditional expectation}
+\begin{equation}
+    v^\star(x, t) = \E_\pi[\, x_1 - x_0 \,\mid\, x_t = x\,].
+\end{equation}
+The integrated flow $\dot{x}(t) = v^\star(x(t), t)$ then transports $\nu_0$ onto
+$\nu_1$ in time one.
+
+\paragraph{Couplings.}
+We compare the following choices of $\pi$ between empirical measures
+$\hat\nu_0 = \frac{1}{N}\sum_i \delta_{x_0^i}$ and $\hat\nu_1$:
+\begin{itemize}
+    \item \textbf{independent}: $\pi = \hat\nu_0 \otimes \hat\nu_1$, i.e.\ pairs
+          drawn independently;
+    \item \textbf{Hungarian OT}: $\pi^\star$ is the exact discrete optimal
+          transport plan with quadratic cost (\texttt{linear\_sum\_assignment});
+    \item \textbf{Sinkhorn-sampled} ($\varepsilon$): $(x_0^i, x_1^j)$ with
+          $j \sim \pi^\varepsilon[i, :] / \sum_j \pi^\varepsilon[i, j]$ and
+          $\pi^\varepsilon$ the Sinkhorn plan with entropic regularisation
+          $\varepsilon$ \cite{cuturi2013sinkhorn};
+    \item \textbf{Sinkhorn-barycentric} ($\varepsilon$): the deterministic pair
+          $(x_0^i, \bar y_i)$ where $\bar y_i = \sum_j W_{ij}\, x_1^j$ is the
+          barycentric projection of the Sinkhorn plan;
+    \item \textbf{Perturbed-OT} ($\alpha$): pairs drawn from
+          $\pi_\alpha = (1-\alpha)\pi^\star + \alpha\pi_{\mathrm{ind}}$.
+\end{itemize}
+
+% =============================================================================
+\section{Method}
+\label{sec:method}
+
+\paragraph{Model.}  We use a 4-layer MLP with width $128$ and SiLU activations,
+mapping $(x, t) \in \R^3 \to \R^2$.  The same parameter initialisation
+is reused across couplings to ensure fair comparison.  We train with Adam
+($\eta = 10^{-3}$) for $T = 2000$ steps on full batches of size $N$.
+
+\paragraph{Source and target.}  Unless stated otherwise, $\nu_0$ is a
+two-moons distribution and $\nu_1$ is a mixture of 8 isotropic Gaussians on a
+circle of radius~5.  We use $N \in \{500, 1000\}$ samples.
+
+\paragraph{Metrics.}
+We report the following:
+\begin{description}
+    \item[Path Energy (PE)] $\mathrm{PE} = \int_0^1 \E\,\|v_\theta(x(t), t)\|^2\, dt$,
+          a proxy for trajectory rectitude.  We also report the
+          \emph{Normalised} version $\mathrm{NPE} = |\mathrm{PE} - W_2^2(\nu_0,
+          \nu_1)| / W_2^2(\nu_0, \nu_1)$.
+    \item[Endpoint $W_2^2$] empirical squared Wasserstein-2 between the
+          generated samples (Euler with $\mathrm{NFE} \in \{4, 8, 16, 32, 64\}$)
+          and the target, estimated via Hungarian assignment.  We additionally
+          report Sliced-Wasserstein-2 over $256$ random projections.
+    \item[Training proxies] loss variance, and a kernel estimate of the
+          conditional target velocity variance $\E\,\Var(x_1 - x_0 \mid x_t)$.
+    \item[Trajectory geometry] $\E\,\|v_{t+\Delta t} - v_t\|^2$ and
+          mean angular deviation $\E\,(1 - \cos(v_t, v_{t+\Delta t}))$ along
+          Euler trajectories.
+    \item[Mode coverage] mode occupancy histogram and KL on the
+          8-Gaussians target.
+\end{description}
+The full implementation is in \texttt{otfm/metrics.py}.
+
+\paragraph{Reproducibility.}  All experiments share a single configuration file
+\texttt{configs/base.yaml}.  The headline figures of this report are produced by
+the non-interactive script \texttt{scripts/run\_full\_benchmark.py}, which writes
+\texttt{results/full\_v1.csv}; the report figures are then generated by
+\texttt{experiments/final\_figures.ipynb}.
+
+% =============================================================================
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Four canonical couplings under matched training}
+
+\textit{[To be filled in by Giovanni once final\_figures.ipynb is up.]}
+
+\subsection{Sinkhorn epsilon sweep}
+
+\textit{[To be filled in by Giovanni.]}
+
+\subsection{Perturbed-OT interpolation}
+
+\textit{[To be filled in by Giovanni.]}
+
+\subsection{Solver vs.\ NFE budget}
+
+\textit{[To be filled in by Mael --- see experiments/nfe\_solver\_comparison.ipynb.]}
+
+% =============================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Why does OT help?}
+The conditional velocity is $v^\star(x, t) = \E_\pi[x_1 - x_0 \mid x_t = x]$.
+For the independent coupling, two source points that happen to land on the same
+$x_t$ from very different targets contribute conflicting velocity targets, so
+$\Var(x_1 - x_0 \mid x_t)$ is large and the regression target becomes blurry.
+For the OT coupling, displacement-cost minimality ensures that interpolating
+lines $t \mapsto (1-t)x_0 + t x_1$ rarely cross at the same $x_t$, so the
+conditional velocity is closer to a deterministic function of $x_t$ alone, and
+the irreducible regression noise is much smaller.  This is exactly what our
+kernel estimate of the target-velocity variance picks up empirically.
+
+\paragraph{Sampled vs.\ barycentric Sinkhorn.}  The barycentric projection makes
+the regression target deterministic given $x_0$, at the cost of pulling targets
+\emph{into the convex hull of the local 8-Gaussians neighbourhood}.  This
+creates a trade-off: lower training noise but slightly biased target geometry.
+The interplay between the two regimes as a function of $\varepsilon$ is one of
+the central observations of the report.
+
+\paragraph{Limitations.}  All experiments are on 2D toy data with $N \le 1000$,
+so OT plans can be solved exactly.  Mini-batch OT \cite{tong2023improving} would
+be required at scale.  Our metrics conflate model-specific and data-specific
+contributions; in particular, low-NFE quality also depends on the rollout
+solver \cite{shaul2023bespoke}, which we explore separately in
+\cref{sec:experiments}.
+
+\paragraph{Future work.}  The most natural extension is to study the regularity
+of the conditional velocity field as a function of the coupling more
+quantitatively, in the spirit of \cite{kornilov2024optimal}, and to compare
+different interpolation \emph{schedules} $x_t = \alpha(t) x_0 + \beta(t) x_1$
+beyond the linear path.
+
+% =============================================================================
+\bibliographystyle{plainnat}
+\bibliography{biblio}
+
+\end{document}
