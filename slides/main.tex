@@ -1,0 +1,129 @@
+\documentclass[10pt, aspectratio=169]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath, amssymb}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\usetheme{metropolis}
+\usecolortheme{seahorse}
+\setbeamertemplate{footline}[frame number]
+
+\title{The Coupling Matters}
+\subtitle{A Controlled Study of Flow Matching with OT Plans}
+\author{Mael Tremouille \and Giovanni Dettori}
+\institute{ENSAE Paris --- M2 Optimal Transport}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+% -----------------------------------------------------------------------------
+\begin{frame}{Outline}
+    \tableofcontents
+\end{frame}
+
+% -----------------------------------------------------------------------------
+\section{Setting}
+
+\begin{frame}{Flow Matching in one slide}
+    Train $v_\theta$ such that
+    \[
+        \dot x(t) = v_\theta(x(t), t)
+        \quad\text{transports }\nu_0 \text{ onto } \nu_1.
+    \]
+    With a coupling $\pi \in \Pi(\nu_0, \nu_1)$ and the linear path
+    $x_t = (1-t)\,x_0 + t\,x_1$:
+    \[
+        \mathcal L(\theta) = \mathbb E_{(x_0, x_1) \sim \pi,\; t}\;
+        \| v_\theta(x_t, t) - (x_1 - x_0) \|^2.
+    \]
+    Optimum: $v^\star(x, t) = \mathbb E_\pi[\,x_1 - x_0 \mid x_t = x\,]$.
+\end{frame}
+
+\begin{frame}{Why the coupling matters}
+    Two sources $x_0^{(1)} \neq x_0^{(2)}$ landing on the same $x_t$
+    contribute potentially conflicting velocity targets.
+    \begin{itemize}
+        \item independent $\pi$: large $\Var(x_1 - x_0 \mid x_t)$;
+        \item OT $\pi^\star$: paths rarely cross at the same $x_t$;
+        \item Sinkhorn $\pi^\varepsilon$: smooth interpolation in $\varepsilon$.
+    \end{itemize}
+\end{frame}
+
+% -----------------------------------------------------------------------------
+\section{Experimental design}
+
+\begin{frame}{Identical training, only $\pi$ changes}
+    \begin{itemize}
+        \item moons $\to$ 8-Gaussians; $N = 1000$.
+        \item 4-layer MLP, width 128, SiLU; Adam, $T = 2000$ steps.
+        \item Same MLP init, same $t$-schedule, same rollout solver.
+        \item Couplings: \emph{independent}, \emph{Hungarian}, \emph{Sinkhorn-sampled},
+              \emph{Sinkhorn-barycentric}, \emph{perturbed-OT($\alpha$)}.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Metrics}
+    \begin{itemize}
+        \item \textbf{Path Energy} $\int_0^1 \|v_\theta\|^2 dt$ and NPE.
+        \item \textbf{Endpoint $W_2^2$} at NFE $\in \{4, 8, 16, 32, 64\}$.
+        \item \textbf{Training proxies}: loss variance, kernel estimate of
+              $\mathbb E\,\Var(x_1 - x_0 \mid x_t)$.
+        \item \textbf{Geometry}: $\|v_{t+\Delta t} - v_t\|^2$, angular deviation.
+        \item \textbf{Mode coverage} on 8-Gaussians.
+    \end{itemize}
+\end{frame}
+
+% -----------------------------------------------------------------------------
+\section{Results}
+
+\begin{frame}{Headline}
+    % \includegraphics[width=\linewidth]{../report/fig_headline.pdf}
+    \begin{center}
+        \emph{[insert headline figure once benchmark CSV is produced]}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Sinkhorn $\varepsilon$ sweep}
+    \begin{center}
+        \emph{[Giovanni: insert figure]}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Perturbed-OT $\alpha$ sweep}
+    \begin{center}
+        \emph{[Giovanni: insert figure]}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Solver vs.\ NFE}
+    \begin{center}
+        \emph{[Mael: insert figure from nfe\_solver\_comparison]}
+    \end{center}
+\end{frame}
+
+% -----------------------------------------------------------------------------
+\section{Conclusion}
+
+\begin{frame}{Take-aways}
+    \begin{itemize}
+        \item OT-based couplings reduce path energy and improve low-NFE quality
+              \emph{at no additional training cost}.
+        \item The barycentric projection further reduces target velocity
+              variance --- at the cost of a slight target-geometry bias.
+        \item Sinkhorn $\varepsilon$ provides a continuous knob between exact OT
+              and independent sampling.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Thank you}
+    \centering
+    Questions?
+\end{frame}
+
+\end{document}

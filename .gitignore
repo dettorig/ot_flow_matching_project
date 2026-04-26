@@ -2,3 +2,26 @@
 .ipynb_checkpoints/
 __pycache__/
 *.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# LaTeX build artefacts
+report/*.aux
+report/*.bbl
+report/*.blg
+report/*.log
+report/*.out
+report/*.pdf
+report/*.fdb_latexmk
+report/*.fls
+report/*.toc
+report/*.synctex.gz
+slides/*.aux
+slides/*.log
+slides/*.nav
+slides/*.out
+slides/*.pdf
+slides/*.snm
+slides/*.toc
+slides/*.vrb
