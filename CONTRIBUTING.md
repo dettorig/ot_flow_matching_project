@@ -23,11 +23,22 @@ Keep the summary line under ~70 characters.
 
 ## Notebook hygiene
 
-- All work happens in `firstrun.ipynb`. Add markdown cells liberally so
-  the notebook reads as a self-contained report.
+- The deliverable is `main.ipynb`. Helpers live in the `otfm/` package;
+  the notebook imports from it rather than redefining functions inline.
+- Add markdown cells liberally so the notebook reads as a self-contained
+  report.
 - Do not commit large output cells if avoidable; clear stale outputs
   (`Kernel → Restart & Clear Output`) before committing whenever the
   diff would otherwise blow up.
+
+## Tests
+
+```bash
+pip install -e ".[dev]"
+pytest -q
+```
+
+CI runs ruff + pytest on every push (`.github/workflows/test.yml`).
 
 ## Reproducibility
 

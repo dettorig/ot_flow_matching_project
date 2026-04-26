@@ -17,16 +17,18 @@ ENSAE Paris — M2 Optimal Transport course project.
 5. **perturbed-OT** ($\alpha$) — $\pi_\alpha = (1-\alpha)\pi^\star + \alpha\pi_{\mathrm{ind}}$,
    linear interpolation between exact OT and the independent plan.
 
-The **deliverable is the annotated notebook** `firstrun.ipynb`. Read it
-top to bottom; each section opens with a short markdown introduction.
+The **deliverable is the annotated notebook** `main.ipynb`. Read it
+top to bottom; the helper code lives in the small `otfm/` package
+(`datasets`, `couplings`, `model`, `training`, `runtime`, `solvers`,
+`metrics`, `plotting`, `sweeps`, `diagnostics`).
 
 ## Setup
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
-jupyter notebook firstrun.ipynb
+pip install -e .
+jupyter notebook main.ipynb
 ```
 
 JAX in `requirements.txt` is the CPU build. For GPU/Metal install the
