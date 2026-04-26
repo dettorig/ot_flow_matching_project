@@ -1,8 +1,8 @@
 """Non-interactive benchmark runner.
 
 Runs the four canonical couplings across multiple seeds and writes a tidy
-CSV to ``results/full_v1.csv``. The CSV is the single source of truth for
-the headline figures of the report.
+CSV to ``results/full_v1.csv``. Useful when you want to separate compute
+from plotting.
 
 Usage::
 

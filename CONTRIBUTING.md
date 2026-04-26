@@ -26,7 +26,7 @@ Allowed types:
 | `refactor` | Code reorganisation with no behavior change            |
 | `fix`      | Bug fix                                                |
 | `test`     | Adding or improving tests                              |
-| `docs`     | README, report, docstrings                             |
+| `docs`     | README, notebook markdown, docstrings                  |
 | `chore`    | Tooling, configs, dependencies                         |
 | `exp`      | Experiment notebook / run / sweep                      |
 | `style`    | Formatting only (ruff/black, no logic)                 |
@@ -36,7 +36,7 @@ Examples:
 - `refactor: extract samplers to otfm/datasets.py`
 - `feat(solvers): add RK4 integrator`
 - `exp: schedules x couplings full sweep`
-- `docs(report): write methodology section`
+- `docs: write methodology section in baseline notebook`
 
 Keep summary line ≤ 70 characters. Body optional, wrapped at 72.
 
@@ -74,5 +74,4 @@ Keep summary line ≤ 70 characters. Body optional, wrapped at 72.
 ## Reproducibility
 
 Seeds are centralised in `configs/base.yaml`. Any new experiment must
-log the seed it used. Final figures in the report must come from a CSV
-in `results/`, not from a one-off ad-hoc run.
+log the seed it used.

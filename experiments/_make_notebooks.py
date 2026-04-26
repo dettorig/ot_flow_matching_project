@@ -287,9 +287,8 @@ FINAL = [
     md_cell(
         "# Final figures (reads ``results/full_v1.csv``)\n"
         "\n"
-        "This notebook is the source of the figures shipped in the report.\n"
-        "It reads the CSV produced by ``scripts/run_full_benchmark.py`` and\n"
-        "produces clean publication-style plots."
+        "Reads the CSV produced by ``scripts/run_full_benchmark.py`` and\n"
+        "produces clean summary plots."
     ),
     code_cell(
         "import pathlib\n"
@@ -328,7 +327,6 @@ FINAL = [
         "    ax.tick_params(axis='x', rotation=30)\n"
         "    style_axes(ax, title=title)\n"
         "fig.tight_layout()\n"
-        "fig.savefig('../report/fig_headline.pdf', bbox_inches='tight')\n"
         "plt.show()\n"
     ),
 ]

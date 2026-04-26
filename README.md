@@ -4,7 +4,8 @@ A controlled, reproducible study of how the choice of coupling
 $\pi \in \Pi(\nu_0, \nu_1)$ affects training and rollout in
 **Flow Matching** on 2D toy data (moons → 8-Gaussians).
 
-ENSAE Paris — M2 Optimal Transport course project.
+ENSAE Paris — M2 Optimal Transport course project. The deliverable is
+the annotated notebook(s) under `experiments/`.
 
 ---
 
@@ -15,11 +16,8 @@ otfm/                package: datasets, couplings, model, training,
                      solvers, runtime, metrics, plotting, sweeps
 tests/               pytest sanity checks (marginals, grad, solver order)
 configs/base.yaml    shared hyper-parameters for every experiment
-experiments/         experiment notebooks (one per topic)
-scripts/             non-interactive runners that dump CSVs
-results/             versioned CSVs the report figures are derived from
-report/              LaTeX source of the report (+ tables + biblio)
-slides/              Beamer slides
+experiments/         experiment notebooks (one per topic) — the deliverable
+scripts/             optional non-interactive runners
 firstrun.ipynb       legacy demo notebook (kept for reference)
 ```
 
@@ -42,36 +40,19 @@ cd ot_flow_matching_project
 python -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip
 pip install -e ".[dev,notebook]"
-
-# Optional: keep notebook diffs free of outputs
-nbstripout --install
 ```
 
-## Reproducing the report
+## Running the experiments
 
-```bash
-# 1. Sanity tests (a few seconds)
-pytest -q
+Open the notebooks in `experiments/` top-to-bottom:
 
-# 2. Run the full benchmark (≈ 5 min on CPU with default config)
-python scripts/run_full_benchmark.py \
-    --config configs/base.yaml \
-    --output results/full_v1.csv
+- `baseline_4_couplings.ipynb` — the four canonical couplings under
+  identical training.
+- `nfe_solver_comparison.ipynb` — Euler / Heun / RK4 at matched NFE.
+- `multiseed_baseline.ipynb` — mean ± std across seeds.
 
-# 3. Generate the report figures
-jupyter nbconvert --to notebook --execute experiments/final_figures.ipynb \
-    --output /tmp/final_figures.run.ipynb
-
-# 4. Build the PDF
-cd report && latexmk -pdf main.tex
-```
-
-For faster iteration during development, override the config from the
-command line:
-
-```bash
-python scripts/run_full_benchmark.py --n 256 --train-steps 500 --seeds 0 1
-```
+For faster iteration, edit `configs/base.yaml` (smaller `n`,
+fewer `train_steps`).
 
 ## Hardware
 
@@ -79,20 +60,10 @@ JAX is installed in CPU mode by default. For GPU/Metal, install the
 matching JAX wheel manually following the
 [official instructions](https://docs.jax.dev/en/latest/installation.html).
 
-## Project layout details
-
-- All hyper-parameters live in [`configs/base.yaml`](configs/base.yaml).
-  Notebooks read it at the top of the file; do not duplicate values.
-- Results are CSVs under `results/` and are versioned. Figures in the
-  report are regenerated from these CSVs, never from one-off runs.
-- `experiments/_make_notebooks.py` regenerates the experiment notebooks
-  from a single Python source of truth, so notebook structure stays in
-  git diffs.
-
 ## Tests
 
 ```bash
-pytest -q             # 22 tests, ~45 s on CPU
+pytest -q             # 22 tests, ~15 s on CPU
 ruff check otfm tests # lint
 ```
 
