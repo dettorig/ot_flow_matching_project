@@ -75,3 +75,11 @@ def get_solver(name: str):
 def nfe_per_step(name: str) -> int:
     """Number of velocity-field evaluations per step for each solver."""
     return {"euler": 1, "heun": 2, "rk4": 4}[name]
+
+def rollout_with_nfe_budget(params, x_init, solver_name: str, target_nfe: int):
+    solver = get_solver(solver_name)
+    cost = nfe_per_step(solver_name)
+    steps = max(1, int(target_nfe) // cost)
+    actual_nfe = steps * cost
+    x_final = solver(params, x_init, steps=steps, return_traj=False)
+    return x_final, steps, actual_nfe

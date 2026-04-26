@@ -13,6 +13,7 @@ from otfm.couplings import (
     make_hungarian_ot_plan,
     make_independent_plan,
     plan_descriptors,
+    sample_pairs_from_coupling,
     sinkhorn_barycentric_pairing,
     sinkhorn_coupling,
 )
@@ -84,3 +85,11 @@ def test_plan_descriptors_returns_floats():
     for k in ("plan_entropy", "plan_sharpness", "plan_dispersion", "plan_transport_cost"):
         assert isinstance(desc[k], float)
         assert np.isfinite(desc[k])
+
+
+def test_sample_pairs_from_coupling_identity_plan_returns_same_targets():
+    x0, x1 = _sample_pair(n=16)
+    n = x0.shape[0]
+    P = jnp.eye(n)
+    _, y1 = sample_pairs_from_coupling(jax.random.PRNGKey(0), x0, x1, P)
+    assert jnp.allclose(y1, x1)

@@ -1,4 +1,4 @@
-"""2D toy distribution samplers used as source / target in the Flow Matching experiments."""
+"""2D toy distribution samplers used as source / target in Flow Matching experiments."""
 
 from __future__ import annotations
 
@@ -20,12 +20,14 @@ EIGHT_GAUSSIANS_CENTERS = jnp.array(
 
 
 def sample_gaussian(key, n: int, mean=(0.0, 0.0), scale: float = 1.0):
+    """Sample n points from a 2D isotropic Gaussian."""
     mean = jnp.array(mean)
     x = jax.random.normal(key, (n, 2))
     return mean + scale * x
 
 
 def sample_8gaussians(key, n: int, radius: float = 5.0, std: float = 0.4):
+    """Sample n points from an 8-component Gaussian mixture on a circle."""
     centers = EIGHT_GAUSSIANS_CENTERS * radius
     k1, k2 = jax.random.split(key)
     idx = jax.random.randint(k1, (n,), 0, 8)
@@ -34,6 +36,7 @@ def sample_8gaussians(key, n: int, radius: float = 5.0, std: float = 0.4):
 
 
 def sample_moons(key, n: int, noise: float = 0.08):
+    """Sample n points from a scaled two-moons distribution."""
     n1 = n // 2
     n2 = n - n1
     k1, k2, k3 = jax.random.split(key, 3)
@@ -49,5 +52,23 @@ def sample_moons(key, n: int, noise: float = 0.08):
     return 3.0 * x
 
 
+def sample_spiral(
+    key,
+    n: int,
+    turns: float = 2.5,
+    r_min: float = 0.4,
+    r_max: float = 6.0,
+    noise: float = 0.20,
+):
+    """Sample n points from a noisy 2D Archimedean spiral."""
+    k1, k2 = jax.random.split(key)
+    theta = jax.random.uniform(k1, (n,), minval=0.0, maxval=2.0 * jnp.pi * turns)
+    r = r_min + (r_max - r_min) * (theta / (2.0 * jnp.pi * turns))
+    x = jnp.stack([r * jnp.cos(theta), r * jnp.sin(theta)], axis=1)
+    x = x + noise * jax.random.normal(k2, x.shape)
+    return x
+
+
 def eight_gaussians_centers(radius: float = 5.0):
+    """Return 8-Gaussians component centers at the requested radius."""
     return EIGHT_GAUSSIANS_CENTERS * radius

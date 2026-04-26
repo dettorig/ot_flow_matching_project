@@ -11,6 +11,7 @@ from otfm.datasets import (
     sample_8gaussians,
     sample_gaussian,
     sample_moons,
+    sample_spiral,
 )
 from otfm.metrics import nearest_center_idx
 
@@ -38,6 +39,6 @@ def test_sample_moons_shape():
 
 
 def test_samples_are_finite():
-    for sampler in (sample_gaussian, sample_8gaussians, sample_moons):
+    for sampler in (sample_gaussian, sample_8gaussians, sample_moons, sample_spiral):
         x = sampler(jax.random.PRNGKey(1), 64)
         assert jnp.all(jnp.isfinite(x))

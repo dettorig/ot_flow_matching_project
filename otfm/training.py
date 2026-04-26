@@ -21,6 +21,7 @@ def fm_loss(params, x0, x1, t):
 
 
 def make_optimizer(lr: float = 1e-3):
+    """Adam optimizer factory."""
     return optax.adam(lr)
 
 

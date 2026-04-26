@@ -1,13 +1,4 @@
-"""Quantitative metrics for trained Flow Matching models and couplings.
-
-Includes:
-- empirical W2^2 between two equal-size samples (Hungarian estimate),
-- Path Energy and NPE (normalised against the ground-truth W2^2 of the data),
-- training proxies via kernel-conditional velocity variance,
-- trajectory curvature / angular deviation,
-- mode coverage / mode-distance metrics for the 8-Gaussians target,
-- Sliced Wasserstein-2 (random projections, closed-form 1D OT).
-"""
+"""Quantitative metrics for trained Flow Matching models and couplings."""
 
 from __future__ import annotations
 
@@ -18,45 +9,41 @@ from scipy.optimize import linear_sum_assignment
 
 from otfm.model import vf_apply
 
+
 # ---------- transport-cost based ----------
 
-
 def empirical_w2_squared_hungarian(A, B) -> float:
-    """Average squared matching cost between two equal-size samples.
-
-    Used as an estimator of W_2^2 between empirical distributions of A and B.
-    """
+    """Average squared matching cost between equal-size samples."""
     C = jnp.sum((A[:, None, :] - B[None, :, :]) ** 2, axis=-1)
     row_ind, col_ind = linear_sum_assignment(np.asarray(C))
     return float(np.asarray(C)[row_ind, col_ind].mean())
 
 
 def sliced_wasserstein_2(A, B, n_projections: int = 256, key=None) -> float:
-    """Sliced Wasserstein-2 between equal-size samples A, B.
-
-    SW_2^2(A, B) = E_{theta} W_2^2(theta^T A, theta^T B), estimated by Monte Carlo
-    over directions and closed-form 1D OT (sort and pair by quantile).
-    """
+    """Sliced Wasserstein-2 (squared) between equal-size samples."""
     if key is None:
         key = jax.random.PRNGKey(0)
+
     A = jnp.asarray(A)
     B = jnp.asarray(B)
     d = A.shape[1]
+
     theta = jax.random.normal(key, (n_projections, d))
     theta = theta / (jnp.linalg.norm(theta, axis=1, keepdims=True) + 1e-12)
-    proj_a = A @ theta.T  # (nA, P)
-    proj_b = B @ theta.T  # (nB, P)
+
+    proj_a = A @ theta.T
+    proj_b = B @ theta.T
+
     sa = jnp.sort(proj_a, axis=0)
     sb = jnp.sort(proj_b, axis=0)
-    sw = jnp.mean((sa - sb) ** 2)
-    return float(sw)
+    sw2 = jnp.mean((sa - sb) ** 2)
+    return float(sw2)
 
 
 # ---------- path-based ----------
 
-
 def path_energy(params, x_init, steps: int = 256) -> float:
-    """PE = E[ \\int_0^1 ||v_theta(x_t, t)||^2 dt ] estimated by Euler quadrature."""
+    """PE = E[∫_0^1 ||v_theta(x_t, t)||^2 dt] estimated by Euler quadrature."""
     dt = 1.0 / steps
     x = x_init
     acc = 0.0
@@ -69,20 +56,16 @@ def path_energy(params, x_init, steps: int = 256) -> float:
 
 
 def normalized_path_energy(pe: float, w2_data: float) -> float:
-    """NPE = |PE - W2^2(data)| / W2^2(data) — relative excess transport cost along trajectories."""
+    """NPE = |PE - W2_data| / W2_data."""
     return abs(pe - w2_data) / (w2_data + 1e-12)
 
 
 def trajectory_curvature_metrics(params, x_init, steps: int = 128, eps: float = 1e-8):
-    """Two curvature-style metrics on Euler trajectories.
-
-    Returns:
-      vel_diff_sq : E[ ||v_{t+dt} - v_t||^2 ]
-      ang_dev     : E[ 1 - cos(v_{t+dt}, v_t) ]   (0 = perfectly aligned trajectory)
-    """
+    """Curvature-style metrics on Euler trajectories."""
     dt = 1.0 / steps
     x = x_init
-    vel_diffs, ang_devs = [], []
+    vel_diffs = []
+    ang_devs = []
 
     t0 = jnp.zeros((x.shape[0], 1))
     v_prev = vf_apply(params, x, t0)
@@ -110,7 +93,6 @@ def trajectory_curvature_metrics(params, x_init, steps: int = 128, eps: float = 
 
 # ---------- training proxies ----------
 
-
 def velocity_variance_kernel(
     xa,
     xb,
@@ -122,16 +104,15 @@ def velocity_variance_kernel(
     include_time: bool = False,
     time_scale: float = 1.0,
 ) -> float:
-    """Estimate E[ Var(v | x_t) ] using kernel-conditional moments.
-
-    Works on the (xa, xb) pairs alone (no trained model needed) and gives a
-    cheap proxy for the irreducible noise the FM regression has to fit.
-    """
+    """Estimate E[Var(v | x_t)] using kernel-conditional moments."""
     if key is None:
         key = jax.random.PRNGKey(0)
 
+    xa = jnp.asarray(xa)
+    xb = jnp.asarray(xb)
+
     N, d = xa.shape
-    vel0 = xb - xa  # (N, d)
+    vel0 = xb - xa
 
     key_t, key_q, key_r = jax.random.split(key, 3)
     t = jax.random.uniform(key_t, (n_time_samples, N, 1))
@@ -171,15 +152,16 @@ def velocity_variance_kernel(
     return float(jnp.mean(local_var))
 
 
-# ---------- mode coverage (8-Gaussians target) ----------
-
+# ---------- mode coverage / geometry ----------
 
 def nearest_center_idx(x, centers):
+    """Return nearest-center index for each sample."""
     d2 = jnp.sum((x[:, None, :] - centers[None, :, :]) ** 2, axis=-1)
     return jnp.argmin(d2, axis=1)
 
 
 def occupancy_hist(x, centers, n_modes: int = 8):
+    """Histogram + probabilities of nearest-mode occupancy."""
     idx = nearest_center_idx(x, centers)
     counts = np.bincount(np.asarray(idx), minlength=n_modes).astype(np.float64)
     probs = counts / max(counts.sum(), 1.0)
@@ -187,13 +169,14 @@ def occupancy_hist(x, centers, n_modes: int = 8):
 
 
 def mode_distance_metrics(x, centers):
+    """Mean and q90 squared distance to nearest center."""
     d2 = jnp.sum((x[:, None, :] - centers[None, :, :]) ** 2, axis=-1)
     min_d2 = jnp.min(d2, axis=1)
     return float(jnp.mean(min_d2)), float(jnp.quantile(min_d2, 0.9))
 
 
 def occupancy_kl(target_probs, gen_probs) -> float:
-    """KL(target || gen) on mode occupancy histograms (with smoothing)."""
+    """KL(target || generated) on occupancy distributions."""
     target_probs = np.asarray(target_probs)
     gen_probs = np.asarray(gen_probs)
     return float(

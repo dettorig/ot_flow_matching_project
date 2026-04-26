@@ -9,9 +9,17 @@ the rk4 error scales as O(h^4) and Heun as O(h^2).
 
 from __future__ import annotations
 
+import pytest
 import jax.numpy as jnp
 
-from otfm.solvers import euler, heun, rk4
+from otfm.solvers import (
+    euler,
+    get_solver,
+    heun,
+    nfe_per_step,
+    rk4,
+    rollout_with_nfe_budget,
+)
 
 
 class _ConstField:
@@ -73,3 +81,35 @@ def test_solver_returns_trajectory_of_correct_length(monkeypatch):
     assert isinstance(traj, list)
     assert len(traj) == 11
     assert all(t.shape == x0.shape for t in traj)
+
+
+def test_get_solver_and_nfe_per_step():
+    assert get_solver("euler") is euler
+    assert get_solver("heun") is heun
+    assert get_solver("rk4") is rk4
+    assert nfe_per_step("euler") == 1
+    assert nfe_per_step("heun") == 2
+    assert nfe_per_step("rk4") == 4
+
+
+def test_get_solver_unknown_raises():
+    with pytest.raises(ValueError):
+        get_solver("bad_solver")
+
+
+def test_rollout_with_nfe_budget_tracks_actual_nfe(monkeypatch):
+    import otfm.solvers as solvers_mod
+
+    monkeypatch.setattr(solvers_mod, "vf_apply", _vf_const)
+    params = _ConstField([1.0, 0.0])
+    x0 = jnp.zeros((2, 2))
+
+    x_final, steps, actual_nfe = rollout_with_nfe_budget(
+        params,
+        x0,
+        solver_name="heun",
+        target_nfe=9,
+    )
+    assert steps == 4
+    assert actual_nfe == 8
+    assert x_final.shape == x0.shape

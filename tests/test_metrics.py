@@ -7,7 +7,10 @@ import jax.numpy as jnp
 
 from otfm.metrics import (
     empirical_w2_squared_hungarian,
+    mode_distance_metrics,
+    occupancy_kl,
     occupancy_hist,
+    normalized_path_energy,
     sliced_wasserstein_2,
 )
 
@@ -48,3 +51,20 @@ def test_occupancy_hist_sums_to_one():
     counts, probs = occupancy_hist(x, centers, n_modes=3)
     assert counts.sum() == 50
     assert abs(probs.sum() - 1.0) < 1e-9
+
+
+def test_mode_distance_metrics_non_negative():
+    centers = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+    x = jax.random.normal(jax.random.PRNGKey(0), (32, 2))
+    mean_d2, q90_d2 = mode_distance_metrics(x, centers)
+    assert mean_d2 >= 0.0
+    assert q90_d2 >= 0.0
+
+
+def test_occupancy_kl_is_zero_for_identical_distributions():
+    p = jnp.array([0.2, 0.3, 0.5])
+    assert abs(occupancy_kl(p, p)) < 1e-12
+
+
+def test_normalized_path_energy_zero_when_matching_w2():
+    assert abs(normalized_path_energy(2.5, 2.5)) < 1e-12

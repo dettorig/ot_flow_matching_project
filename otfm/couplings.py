@@ -1,7 +1,6 @@
 """Coupling / pairing strategies between source and target empirical distributions.
 
-Each function returns a pair (x0_paired, x1_paired) of equal length so that the
-i-th source sample is paired with the i-th target sample for Flow Matching training.
+Each pairing function returns (x0_paired, x1_paired) with matching first dimension.
 """
 
 from __future__ import annotations
@@ -16,12 +15,12 @@ from scipy.optimize import linear_sum_assignment
 
 
 def independent_pairing(x0, x1):
-    """Pair by index — equivalent to π = ν0 ⊗ ν1 when x0, x1 are i.i.d."""
+    """Pair by index (product coupling when x0, x1 are sampled independently)."""
     return x0, x1
 
 
 def sinkhorn_coupling(x0, x1, epsilon: float = 0.1):
-    """Solve entropic OT and return the transport matrix P and the solver output."""
+    """Solve entropic OT and return transport matrix P plus OTT solver output."""
     geom = pointcloud.PointCloud(x0, x1, epsilon=epsilon)
     prob = linear_problem.LinearProblem(geom)
     solver = sinkhorn.Sinkhorn()
@@ -30,13 +29,12 @@ def sinkhorn_coupling(x0, x1, epsilon: float = 0.1):
 
 
 def sample_pairs_from_coupling(key, x0, x1, P):
-    """Stochastic pairing: for each row i of P, sample j ~ P[i, :] / sum_j P[i, :]."""
+    """Stochastic pairing: for each i, sample j from row-normalized P[i, :]."""
     row_sums = jnp.sum(P, axis=1, keepdims=True) + 1e-12
     probs = P / row_sums
 
     n = x0.shape[0]
     keys = jax.random.split(key, n)
-
     sampled_indices = jnp.array(
         [jax.random.choice(keys[i], x1.shape[0], p=probs[i]) for i in range(n)]
     )
@@ -45,22 +43,24 @@ def sample_pairs_from_coupling(key, x0, x1, P):
 
 
 def hungarian_pairing(x0, x1):
-    """Exact discrete OT via the Hungarian algorithm on squared Euclidean cost."""
+    """Exact discrete OT pairing via Hungarian algorithm on squared Euclidean cost."""
     C = jnp.sum((x0[:, None, :] - x1[None, :, :]) ** 2, axis=-1)
     _, col_ind = linear_sum_assignment(np.asarray(C))
     return x0, x1[jnp.array(col_ind)]
 
 
 def sinkhorn_barycentric_pairing(x0, x1, P):
-    """Deterministic pairing via the barycentric projection y_i = sum_j P_ij x1_j / sum_j P_ij."""
+    """Deterministic pairing via Sinkhorn barycentric projection."""
     row_sums = jnp.sum(P, axis=1, keepdims=True) + 1e-12
     W = P / row_sums
     x1_bar = W @ x1
     return x0, x1_bar
 
 
+# ---- plan-level helpers (for perturbed OT / coupling-geometry studies) ----
+
 def make_hungarian_ot_plan(x0, x1):
-    """Return the Hungarian transport plan as a (N,N) matrix with mass 1/N on the assignment."""
+    """Return Hungarian transport plan pi_ot (N,N) with mass 1/N on assignment."""
     C = jnp.sum((x0[:, None, :] - x1[None, :, :]) ** 2, axis=-1)
     row_ind, col_ind = linear_sum_assignment(np.asarray(C))
     N = x0.shape[0]
@@ -70,23 +70,26 @@ def make_hungarian_ot_plan(x0, x1):
 
 
 def make_independent_plan(N: int):
-    """Independent (product) plan u u^T with uniform marginals."""
+    """Independent plan u u^T with uniform marginals."""
     u = jnp.ones(N) / N
     return jnp.outer(u, u)
 
 
 def interpolate_plans(pi_a, pi_b, alpha: float):
-    """Linear interpolation between two plans on the simplex of plans."""
+    """Linear interpolation between plans on the coupling simplex."""
     return (1.0 - alpha) * pi_a + alpha * pi_b
 
 
 def plan_descriptors(pi, x1, C):
-    """Mean per-row entropy / sharpness / dispersion of a plan, plus its transport cost."""
+    """Plan descriptors used in your notebook (entropy, sharpness, dispersion, transport cost)."""
     rowp = pi / (jnp.sum(pi, axis=1, keepdims=True) + 1e-12)
     H = -jnp.sum(rowp * jnp.log(rowp + 1e-12), axis=1)
     S = jnp.max(rowp, axis=1)
     xbar = rowp @ x1
-    D = jnp.sum(rowp * jnp.sum((x1[None, :, :] - xbar[:, None, :]) ** 2, axis=-1), axis=1)
+    D = jnp.sum(
+        rowp * jnp.sum((x1[None, :, :] - xbar[:, None, :]) ** 2, axis=-1),
+        axis=1,
+    )
     return {
         "plan_entropy": float(jnp.mean(H)),
         "plan_sharpness": float(jnp.mean(S)),
