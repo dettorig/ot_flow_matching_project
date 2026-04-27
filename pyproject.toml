@@ -22,7 +22,6 @@ dependencies = [
     "jax>=0.4.28",
     "optax>=0.2.2",
     "ott-jax>=0.4.8",
-    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +34,7 @@ dev = [
 notebook = [
     "jupyter>=1.0.0",
     "ipykernel>=6.29",
+    "nbconvert>=7.16",
 ]
 
 [tool.setuptools.packages.find]
