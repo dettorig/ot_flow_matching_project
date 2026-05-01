@@ -11,7 +11,8 @@ ENSAE Paris - M2 Optimal Transport course project.
 
 1. **independent** - $\pi = \nu_0 \otimes \nu_1$, random pairs.
 2. **hungarian_exact_ot** - exact discrete OT via the Hungarian algorithm.
-3. **sinkhorn_sampled** ($\varepsilon$) - pairs sampled from a Sinkhorn plan.
+3. **sinkhorn_sampled** ($\varepsilon$) - pairs sampled from a Sinkhorn plan 
+   (often logged as **sinkhorn_eps_<epsilon>**, e.g. **sinkhorn_eps_0.05**).
 4. **sinkhorn_barycentric** ($\varepsilon$) - deterministic pairs via the
    barycentric projection of the same Sinkhorn plan.
 5. **perturbed-OT** ($\alpha$) - $\pi_\alpha = (1-\alpha)\pi^\star + \alpha\pi_{\mathrm{ind}}$,
